@@ -2,15 +2,21 @@ use std::{io, thread};
 use std::io::{stdout, Write};
 use chrono::{self, Local, NaiveDate};
 use std::sync::mpsc;
+use serde::{Serialize};
+use serde_json;
+use std::fs;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct Log<'a> {  // struct for logging the times spent studying or on a break with the date
     total_time: &'a i64,
     break_time: &'a i64,
     date: NaiveDate,
 }
 
+const FILENAME: &str = "logs.json";
+
 fn main(){
+    let mut log_vec: Vec<Log> = Vec::new();
     let (tx,rx) = mpsc::channel();
 
     
@@ -44,8 +50,11 @@ fn main(){
             Ok(msg) => {
                 if msg.trim() == "q" {
                     println!("\nExiting...");
-                    println!("time studied: {}", stud_time);
-                    log(&stud_time, &down_time);
+                    println!("time studied: {}h, {}m, {}s\ntime on a break: {}h, {}m, {}s", stud_time/3600, stud_time/60, stud_time%60, down_time/3600, down_time/60, down_time%60);
+                    let new_log = log(&stud_time, &down_time);
+                    println!("saving logs to {}", FILENAME);
+                    log_vec.push(new_log);
+                    save(&log_vec, FILENAME);
                     break;
                 }
             }
@@ -66,7 +75,7 @@ fn main(){
     }
 }
 
-fn log<'a>(stud_time: &'a i64, down_time: &'a i64) {
+fn log<'a>(stud_time: &'a i64, down_time: &'a i64) -> Log<'a> {
     let date_now = Local::now().date_naive();
     let new_log = Log {
         total_time: stud_time,
@@ -74,5 +83,10 @@ fn log<'a>(stud_time: &'a i64, down_time: &'a i64) {
         date: date_now,
     };
 
-    println!("{:?}", new_log);
+    new_log
+}
+
+fn save(logs: &Vec<Log>, filename_var: &str) {
+    let data = serde_json::to_string_pretty(logs).expect("Error: could not save logs to file.");
+    fs::write(filename_var, data).expect("Error: could not write data to file.")
 }
